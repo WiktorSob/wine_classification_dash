@@ -1,0 +1,245 @@
+---
+title: "Klasyfikacja Win"
+author: "Sobański Wiktor"
+output:
+  html_document:
+    theme: cerulean
+    toc: false
+    code_folding: hide
+    code_download: true
+    highlight: tango
+    df_print: paged
+---
+Zestaw zadań na ocenę 4.
+
+
+```{r setup, include=FALSE}
+library(MASS)
+library(dplyr)
+library(ggplot2)
+library(plotly)
+library(kdensity)
+library(mixtools)
+```
+
+## Zadania {.tabset}
+
+### Zadanie a)
+
+#### Treść zadania:
+Dla każdej wartości (klasy) zmiennej Z znaleźć estymator jądrowy gęstości dwuwymiarowej opisującej rozkład X i Y. Następnie za pomocą otrzymanych gęstości wyznaczyć obszary klasyfikacji (zrobić odpowiedni rysunek) i wyznaczyć procent poprawnej reklasyfikacji.
+
+#### Rozwiązanie:
+ 
+Ramka danych:
+```{r dane}
+x = data.frame(read.csv("wine.csv", sep = ",", header = T))
+x = x[c("Wine", "Acl", "OD")]
+x$Wine = as.factor(x$Wine)
+x
+```
+W celu znalezienia estymatora jądrowego gęstości dwuwymiarowej wykorzystana zostanie funkcja *kde2d* z pakietu *MASS*.
+```{r wyznaczenie_gestosci}
+gest1 = kde2d(x$Acl[x$Wine == "1"], x$OD[x$Wine == "1"], n = 50, lims = c(10, 30, 1, 5))
+gest2 = kde2d(x$Acl[x$Wine == "2"], x$OD[x$Wine == "2"], n = 50, lims = c(10, 30, 1, 5))
+gest3 = kde2d(x$Acl[x$Wine == "3"], x$OD[x$Wine == "3"], n = 50, lims = c(10, 30, 1, 5))
+```
+
+Znalezione estymatory jądrowe można zaprezentować graficznie na jednym wykresie razem z punktami dla poszczególnych Win:
+```{r wykres_1}
+contour(gest1,lwd=1,method="simple", col = "#65C14C",
+        xlab = "Acl",
+        ylab = 'OD',
+        labels ="",
+        main = "Gęstości dwuwymiarowe\ndla poszczególnych kateogrii win",
+        xlim = c(10,30),
+        ylim = c(1.2,4.7))
+contour(gest2,lwd=1,method="simple", col = "#38898E",
+                          labels="", add =T)
+contour(gest3,lwd=1,method="simple", col = "#84374B",
+        labels="",add =T)
+points(x$Acl[x$Wine == "1"], x$OD[x$Wine == "1"],pch=19,col='#65C14C',cex=1.2) 
+points(x$Acl[x$Wine == "2"], x$OD[x$Wine == "2"],pch=19,col='#38898E',cex=1.2) 
+points(x$Acl[x$Wine == "3"], x$OD[x$Wine == "3"],pch=19,col='#84374B',cex=1.2)
+legend("topleft",legend=c("Wino 1", "Wino 2", "Wino 3"), pch = 19, col = c("#65C14C", "#38898E", "#84374B"), title =  "Rodzaj wina:")
+```
+
+Na podstawie wyznaczonych gęstości można wyznaczyć obszary klasyfikacji
+według określonej reguły - obserwacja klasyfikowana jest do tej kategorii, dla której wartość gęstości jest największa w klasyfikowanym punkcie.
+```{r}
+obszar1=ifelse(gest1$z>gest2$z & gest1$z>gest3$z,1,0)
+obszar2=ifelse(gest2$z>gest1$z & gest2$z>gest3$z,1,0)
+obszar3=ifelse(gest3$z>gest1$z & gest3$z>gest2$z,1,0)
+```
+
+
+Wyznaczone obszary klasyfikacji można przedstawić w sposób graficzny na wykresie:
+```{r wykres_2}
+plot(x$Acl[x$Wine == "1"], x$OD[x$Wine == "1"],pch=19,col='#65C14C',cex=1.2,
+     xlim = c(8,30),
+     ylim = c(1.2,5),
+     main = "Wykres rozrzutu dla win \nwraz z obszarem klasyfikacji",
+     sub = "obszary klasyfikacji wyznaczone na podstawie estymatora jądrowego",
+     xlab = 'Acl',
+     ylab = 'OD') 
+points(x$Acl[x$Wine == "2"], x$OD[x$Wine == "2"],pch=19,col='#38898E',cex=1.2) 
+points(x$Acl[x$Wine == "3"], x$OD[x$Wine == "3"],pch=19,col='#84374B',cex=1.2)
+
+contour(gest1$x,gest1$y,obszar1,add = T,lwd=2,levels = 0.5,method="simple", col = "#65C14C",
+        labels="")
+contour(gest2$x,gest2$y,obszar2,add=T,lwd=2,levels = 0.5,method="simple", col = "#38898E",
+        labels="")
+contour(gest3$x,gest3$y,obszar3,add=T,lwd=2,levels =0.5,method="simple", col = "#84374B",
+        labels="")
+legend("topleft",legend=c("Wino 1", "Wino 2", "Wino 3"), pch = 19, col = c("#65C14C", "#38898E", "#84374B"), title =  "Rodzaj wina:")
+
+```
+
+Ostatecznie, na podstawie wyznaczonych reguł klasyfikacyjnych można dokonać reklasyfikacji obserwacji ze zbioru danych.
+
+```{r reklasyfikacja}
+reklas = vector(length = nrow(x))
+for(i in 1:nrow(x)){
+  g1=kde2d(x$Acl[x$Wine == "1"], x$OD[x$Wine == "1"],
+           lims=c(x$Acl[i],x$Acl[i],
+                  x$OD[i],x$OD[i]),n=1)
+
+  g2=kde2d(x$Acl[x$Wine == "2"], x$OD[x$Wine == "2"],
+           lims=c(x$Acl[i],x$Acl[i],
+                  x$OD[i],x$OD[i]),n=1)
+
+  g3=kde2d(x$Acl[x$Wine == "3"], x$OD[x$Wine == "3"],
+           lims=c(x$Acl[i],x$Acl[i],
+                  x$OD[i],x$OD[i]),n=1)
+  
+  if(g1$z>g2$z & g1$z>g3$z){reklas[i]="1"}
+  if(g2$z>g1$z & g2$z>g3$z){reklas[i]="2"}
+  if(g3$z>g1$z & g3$z>g2$z){reklas[i]="3"}
+}
+
+```
+
+Po dokonanej reklasyfikacji można wyznaczyć tabelę klasyfikacji oraz obliczyć procent porpawnej klasyfikacji
+
+```{r wyniki}
+table(reklas,x$Wine)
+
+print(noquote(
+  paste("Procent poprawnej klasyfikacji:", round(sum(diag(table(reklas, x$Wine)))/nrow(x)*100,2), "%"))) 
+```
+
+82% Obserwacji zostało zaklasyfikowanych poprawnie, co wskazuje na wysoką skuteczność wykorzystanego klasyfikatora.
+
+### Zadanie b) i c)
+
+#### Treść zadania:
+Dla każdej wartości (klasy) zmiennej Z znaleźć gęstości dwuwymiarowe rozkładu normalnego opisujące rozkład X i Y. Następnie za pomocą otrzymanych gęstości wyznaczyć obszary klasyfikacji (zrobić odpowiedni rysunek) i wyznaczyć procent poprawnej reklasyfikacji. Porównać procent poprawnej reklasyfikacji w podpunktach a) i b).
+
+Aby dopasować rozkład normalny do danych klas należy wyznaczyć poszczególne wartości parametrów dla rozkładu normalnego:
+```{r parametry}
+mu1Acl=mean(x$Acl[x$Wine == '1'])
+mu1OD=mean(x$OD[x$Wine == '1'])
+mu_1 = c(mu1Acl, mu1OD)
+
+mu2Acl=mean(x$Acl[x$Wine == '2'])
+mu2OD=mean(x$OD[x$Wine == '2'])
+mu_2 = c(mu2Acl, mu2OD)
+
+mu3Acl=mean(x$Acl[x$Wine == '3'])
+mu3OD=mean(x$OD[x$Wine == '3'])
+mu_3 = c(mu3Acl, mu3OD)
+
+var_1=var(x[x$Wine == '1', 2:3])
+var_2=var(x[x$Wine == '2', 2:3])
+var_3=var(x[x$Wine == '3', 2:3])
+```
+
+Po wyznaczeniu wartości parametrów dla dwuwymiarowych rozkładów normalnych dla każdej z kategorii win można wyznaczyć gęstość rozkładu normalnego dla siatki punktów i przedstawić rezultat na wykresie:
+```{r gestosci}
+gest1=function(x){dmvnorm(x,mu=mu_1,sigma=var_1)}
+gest2=function(x){dmvnorm(x,mu=mu_2,sigma=var_2)}
+gest3=function(x){dmvnorm(x,mu=mu_3,sigma=var_3)}
+
+N=300
+x1=seq(from=10,to=30,length.out = N) 
+y=seq(from=1,to=4,length.out = N)
+siatka=expand.grid(x=x1,y=y)
+
+wek1=gest1(as.matrix(siatka))
+norm1_z=matrix(wek1,nrow=N,ncol=N)
+  
+wek2=gest2(as.matrix(siatka))
+norm2_z=matrix(wek2,nrow=N,ncol=N)
+
+wek3=gest3(as.matrix(siatka))
+norm3_z=matrix(wek3,nrow=N,ncol=N)
+
+plot(x$Acl[x$Wine == "1"], x$OD[x$Wine == "1"],pch=19,col='#65C14C',cex=1.2,
+     xlim = c(8,30),
+     ylim = c(1.2,5),
+     main = "Wykres rozrzutu dla win \nwraz z dwuwymiarowym rozkładem normalnym",
+     xlab = 'Acl',
+     ylab = 'OD') 
+points(x$Acl[x$Wine == "2"], x$OD[x$Wine == "2"],pch=19,col='#38898E',cex=1.2) 
+points(x$Acl[x$Wine == "3"], x$OD[x$Wine == "3"],pch=19,col='#84374B',cex=1.2)
+legend('topleft',legend=c("Wino 1", "Wino 2", "Wino 3"), pch = 19, col = c("#65C14C", "#38898E", "#84374B"), title =  "Rodzaj wina:")
+
+contour(x1,y,norm1_z,add=T,col="#65C14C")
+contour(x1,y,norm2_z,add=T,col="#38898E")
+contour(x1,y,norm3_z,add=T,col="#84374B")
+
+```
+
+Nastepnym krokiem jest znalezienie obszarów klasyfikacji, podobnie jak w zadaniu a) obszary klasyfikacji zostaną wyznaczone na podstawie największej gęstości w danym punkcie. Obszary klasyfikacji zaprezentowano na wykresie poniżej:
+
+```{r obszary_normalny}
+clas1=ifelse(norm1_z>norm2_z & norm1_z>norm3_z,1,0)
+clas2=ifelse(norm2_z>norm1_z & norm2_z>norm3_z,1,0)
+clas3=ifelse(norm3_z>norm1_z & norm3_z>norm2_z,1,0)
+
+plot(x$Acl[x$Wine == "1"], x$OD[x$Wine == "1"],pch=19,col='#65C14C',cex=1.2,
+     xlim = c(8,30),
+     ylim = c(1.2,5),
+     main = "Wykres rozrzutu dla win \nwraz z obszarami klasyfikacji win",
+     sub = "obszary klasyfikacji wyznaczone na podstawie dwuwymiarowego rozkładu normalnego",
+     cex.sub = 0.7,
+     xlab = 'Acl',
+     ylab = 'OD') 
+points(x$Acl[x$Wine == "2"], x$OD[x$Wine == "2"],pch=19,col='#38898E',cex=1.2) 
+points(x$Acl[x$Wine == "3"], x$OD[x$Wine == "3"],pch=19,col='#84374B',cex=1.2)
+legend('topleft',legend=c("Wino 1", "Wino 2", "Wino 3"), pch = 19, col = c("#65C14C", "#38898E", "#84374B"), title =  "Rodzaj wina:")
+
+contour(x1,y,clas1,add=T,method="simple",labels="",lwd=2, col = '#65C14C')
+contour(x1,y,clas2,add=T,method="simple",labels="",lwd=2, col = '#38898E')
+contour(x1,y,clas3,add=T,method="simple",labels="",lwd=2, col = '#84374B')
+
+
+```
+
+Ostatnim etapem jest dokonanie reklasyfikacji zbioru na podstawie wyznaczonych obszarów.
+```{r reklasyfikacja_norm }
+reklas1=vector(length=nrow(x))
+for(i in 1:nrow(x)){
+  arg=as.numeric(x[i,2:3])
+  if(gest1(arg)>gest2(arg) & gest1(arg)>gest3(arg)){reklas1[i]="1"}
+  if(gest2(arg)>gest1(arg) & gest2(arg)>gest3(arg)){reklas1[i]="2"}
+  if(gest3(arg)>gest2(arg) & gest3(arg)>gest1(arg)){reklas1[i]="3"}
+}
+```
+
+W celu weryfikacji jakości klasyfikatora można utworzyć macierz pomyłek i na jej podstawić procent poprawnej klasyfikacji.
+```{r wyniki_norm}
+
+table(reklas1,x$Wine)
+
+print(noquote(
+  paste("Procent poprawnej klasyfikacji:", round(sum(diag(table(reklas1, x$Wine)))/nrow(x)*100,2), "%"))) 
+
+```
+
+
+Okazuje się, że klasyfikator oparty na rozkładzie normalnym wykazuje nieco gorszą zdolność predykcyjną niż ten oparty na jądrowym estymatorze gęstości. Różnica w odsetku poprawnie zaklasyfikowanych obserwacji jest jednak nieduża i wynosi 2 punkty procentowe.
+
+
+
+
